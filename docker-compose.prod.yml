@@ -1,0 +1,157 @@
+# 生产环境部署配置（腾讯云 2GB 服务器优化版）
+# 用法：docker compose -f docker-compose.prod.yml up -d
+# 更新：docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: interview-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    # 不暴露端口到宿主机，仅 Docker 内部网络访问
+    expose:
+      - "5432"
+    # 2GB 服务器内存限制
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+    # Postgres 内存调优（保守值适配 384MB 上限）
+    command: >
+      -c shared_buffers=96MB
+      -c effective_cache_size=192MB
+      -c maintenance_work_mem=32MB
+      -c work_mem=16MB
+      -c max_connections=30
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: interview-redis
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --maxmemory 96mb --maxmemory-policy allkeys-lru --save ""
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio
+    container_name: interview-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${APP_STORAGE_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${APP_STORAGE_SECRET_KEY}
+    expose:
+      - "9000"
+    volumes:
+      - minio_data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  createbuckets:
+    image: minio/mc
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      set -eu;
+      /usr/bin/mc alias set myminio http://minio:9000 ${APP_STORAGE_ACCESS_KEY} ${APP_STORAGE_SECRET_KEY} &&
+      (
+        /usr/bin/mc ls myminio/${APP_STORAGE_BUCKET} > /dev/null 2>&1 ||
+        /usr/bin/mc mb myminio/${APP_STORAGE_BUCKET}
+      ) &&
+      /usr/bin/mc anonymous set public myminio/${APP_STORAGE_BUCKET}
+      "
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+  app:
+    image: ${APP_IMAGE:-ghcr.io/fyk1239/interview-guide-app:latest}
+    container_name: interview-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      createbuckets:
+        condition: service_completed_successfully
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+      APP_STORAGE_ENDPOINT: http://minio:9000
+      APP_STORAGE_ACCESS_KEY: ${APP_STORAGE_ACCESS_KEY}
+      APP_STORAGE_SECRET_KEY: ${APP_STORAGE_SECRET_KEY}
+      APP_STORAGE_BUCKET: ${APP_STORAGE_BUCKET}
+      APP_STORAGE_REGION: us-east-1
+
+      AI_BAILIAN_API_KEY: ${AI_BAILIAN_API_KEY}
+      AI_MODEL: ${AI_MODEL:-qwen3.5-flash}
+      APP_AI_CONFIG_ENCRYPTION_KEY: ${APP_AI_CONFIG_ENCRYPTION_KEY}
+
+      APP_INTERVIEW_FOLLOW_UP_COUNT: ${APP_INTERVIEW_FOLLOW_UP_COUNT:-1}
+      APP_INTERVIEW_EVALUATION_BATCH_SIZE: ${APP_INTERVIEW_EVALUATION_BATCH_SIZE:-8}
+
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+
+      # JVM 内存优化（2GB 服务器）
+      JAVA_TOOL_OPTIONS: "-Xms256m -Xmx384m -XX:+UseZGC -XX:MaxDirectMemorySize=64m"
+    expose:
+      - "8080"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    restart: unless-stopped
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-ghcr.io/fyk1239/interview-guide-frontend:latest}
+    container_name: interview-frontend
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
