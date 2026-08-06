@@ -61,21 +61,30 @@ jobs:
   deploy:
     needs: build-images
     runs-on: ubuntu-latest
-    if: ${{ secrets.SSH_HOST != '' && secrets.SSH_PRIVATE_KEY != '' }}
+    # secrets 上下文不能用于 job 级 if，改为引入 env 后判断
+    env:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Deploy to server
+        if: ${{ env.SSH_HOST != '' && env.SSH_PRIVATE_KEY != '' }}
         uses: appleboy/ssh-action@v1
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: ${{ env.SSH_HOST }}
+          username: ${{ env.SSH_USERNAME }}
+          key: ${{ env.SSH_PRIVATE_KEY }}
           script: |
             set -e
             cd /opt/interview-guide || exit 1
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
             docker image prune -f
+
+      - name: Skip notice
+        if: ${{ env.SSH_HOST == '' }}
+        run: echo "::warning::SSH Secrets 未配置，跳过自动部署。请在仓库 Settings → Secrets 配置 SSH_HOST / SSH_USERNAME / SSH_PRIVATE_KEY"
