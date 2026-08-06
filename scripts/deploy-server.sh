@@ -11,6 +11,10 @@ SERVER="ubuntu@106.52.54.72"
 REPO="https://github.com/fyk1239/interview-guide.git"
 PROJECT_DIR="/opt/interview-guide"
 
+# 使用部署专用密钥 + BatchMode（避免弹出密码/凭据窗口）
+SSH="ssh -i ~/.ssh/deploy-keys/interview-guide-deploy -o BatchMode=yes -o ConnectTimeout=25"
+REMOTE() { $SSH "$SERVER" bash -s; }
+
 # ---------- 从本地 .env 读取密钥 ----------
 if [ ! -f .env ]; then
   echo "❌ 根目录下找不到 .env 文件，请先执行: cp .env.example .env  并填入 API 密钥"
@@ -42,7 +46,7 @@ echo "=========================================="
 # ============================================================
 echo ""
 echo "[1/4] 部署项目文件..."
-ssh "$SERVER" bash -s << REMOTE_SCRIPT
+$SSH "$SERVER" bash -s << REMOTE_SCRIPT
 set -euo pipefail
 if [ -d "$PROJECT_DIR/.git" ]; then
   echo "  项目已存在，git pull 更新..."
@@ -61,7 +65,7 @@ REMOTE_SCRIPT
 echo ""
 echo "[2/4] 生成生产环境 .env..."
 
-ssh "$SERVER" bash -s << REMOTE_ENV
+$SSH "$SERVER" bash -s << REMOTE_ENV
 set -euo pipefail
 cat > "$PROJECT_DIR/.env" << EOF
 # === AI 服务密钥（必填）===
@@ -105,7 +109,7 @@ REMOTE_ENV
 echo ""
 echo "[3/4] 安装 Docker（首次约 2-3 分钟）..."
 
-ssh "$SERVER" bash -s << 'REMOTE_DOCKER'
+$SSH "$SERVER" bash -s << 'REMOTE_DOCKER'
 set -euo pipefail
 if command -v docker &>/dev/null && docker compose version &>/dev/null 2>&1; then
   echo "  ✅ Docker 已安装"
@@ -115,8 +119,20 @@ fi
 echo "  正在安装 Docker..."
 curl -fsSL https://get.docker.com | sudo bash
 sudo usermod -aG docker ubuntu
+
+# 配置腾讯云 registry 镜像加速（国内访问 Docker Hub 不稳定）
+echo "  配置镜像加速..."
+sudo mkdir -p /etc/docker
+sudo tee /etc/docker/daemon.json > /dev/null << 'DAEMON_EOF'
+{
+  "registry-mirrors": ["https://mirrors.tencentyun.com"]
+}
+DAEMON_EOF
+sudo systemctl restart docker
+
 echo "  ✅ Docker 安装完成"
 docker --version
+docker info 2>/dev/null | grep -A3 "Registry Mirrors" || true
 REMOTE_DOCKER
 
 # ============================================================
@@ -125,7 +141,7 @@ REMOTE_DOCKER
 echo ""
 echo "[4/4] 启动服务..."
 
-ssh "$SERVER" bash -s << 'REMOTE_START'
+$SSH "$SERVER" bash -s << 'REMOTE_START'
 set -euo pipefail
 cd /opt/interview-guide
 
