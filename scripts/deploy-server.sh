@@ -33,8 +33,10 @@ if [ -z "$BAILIAN_KEY" ] || [ "$BAILIAN_KEY" = "your_dashscope_api_key_here" ]; 
 fi
 
 # ---------- 自动生成随机密码（不来自 .env）----------
-DB_PW=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 20)
-MINIO_PW=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 20)
+# 注意：不能用 `cat /dev/urandom | ... | head -c 20` 管道，
+# 在 set -o pipefail 下 head 提前关闭管道会导致 SIGPIPE(141) 使脚本静默退出。
+DB_PW=$(openssl rand -hex 12)
+MINIO_PW=$(openssl rand -hex 12)
 
 echo "=========================================="
 echo " AI Interview Platform - 一键部署"
@@ -45,10 +47,12 @@ echo "=========================================="
 # Step 1: 克隆/更新项目
 # ============================================================
 echo ""
-echo "[1/4] 部署项目文件..."
+echo "[1/4] 检查项目文件..."
 $SSH "$SERVER" bash -s << REMOTE_SCRIPT
-set -euo pipefail
-if [ -d "$PROJECT_DIR/.git" ]; then
+set -uo pipefail
+if [ -f "$PROJECT_DIR/docker-compose.prod.yml" ]; then
+  echo "  ✅ 配置文件已存在（本地直接推送的版本），跳过代码拉取"
+elif [ -d "$PROJECT_DIR/.git" ]; then
   echo "  项目已存在，git pull 更新..."
   cd "$PROJECT_DIR" && git pull origin master
 else
