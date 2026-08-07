@@ -44,6 +44,8 @@ public class KnowledgeBaseQueryService {
     private final KnowledgeBaseVectorService vectorService;
     private final KnowledgeBaseListService listService;
     private final KnowledgeBaseCountService countService;
+    private final HybridSearchService hybridSearchService;
+    private final KnowledgeBaseQueryProperties queryProperties;
     private final PromptTemplate systemPromptTemplate;
     private final PromptTemplate userPromptTemplate;
     private final PromptTemplate rewritePromptTemplate;
@@ -61,11 +63,14 @@ public class KnowledgeBaseQueryService {
             KnowledgeBaseListService listService,
             KnowledgeBaseCountService countService,
             KnowledgeBaseQueryProperties queryProperties,
+            HybridSearchService hybridSearchService,
             ResourceLoader resourceLoader) throws IOException {
         this.llmProviderRegistry = llmProviderRegistry;
         this.vectorService = vectorService;
         this.listService = listService;
         this.countService = countService;
+        this.queryProperties = queryProperties;
+        this.hybridSearchService = hybridSearchService;
         this.systemPromptTemplate = new PromptTemplate(
             resourceLoader.getResource(queryProperties.getSystemPromptPath())
                 .getContentAsString(StandardCharsets.UTF_8)
@@ -279,19 +284,30 @@ public class KnowledgeBaseQueryService {
         return question == null ? "" : question.trim();
     }
 
-//    向量检索
+//    检索（混合检索或纯向量，由配置门控）
     private List<Document> retrieveRelevantDocs(QueryContext queryContext, List<Long> knowledgeBaseIds) {
+        boolean hybridEnabled = queryProperties.getHybrid().isEnabled();
         for (String candidateQuery : queryContext.candidateQueries()) {
             if (candidateQuery.isBlank()) {
                 continue;
             }
-            List<Document> docs = vectorService.similaritySearch(
-                candidateQuery,
-                knowledgeBaseIds,
-                queryContext.searchParams().topK(),
-                queryContext.searchParams().minScore()
-            );
-            log.info("检索候选 query='{}'，命中 {} 条", candidateQuery, docs.size());
+            List<Document> docs;
+            if (hybridEnabled) {
+                docs = hybridSearchService.hybridSearch(
+                    candidateQuery,
+                    knowledgeBaseIds,
+                    queryContext.searchParams().topK(),
+                    queryContext.searchParams().minScore(),
+                    queryProperties);
+            } else {
+                docs = vectorService.similaritySearch(
+                    candidateQuery,
+                    knowledgeBaseIds,
+                    queryContext.searchParams().topK(),
+                    queryContext.searchParams().minScore());
+            }
+            log.info("检索候选 query='{}'，模式={}，命中 {} 条",
+                candidateQuery, hybridEnabled ? "hybrid" : "vector", docs.size());
             if (hasEffectiveHit(docs)) {
                 return docs;
             }

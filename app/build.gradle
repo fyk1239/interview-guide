@@ -56,6 +56,9 @@ dependencies {
     // Pinyin4j - 汉字转拼音
     implementation libs.pinyin4j
 
+    // jieba-analysis - 中文分词，用于全文检索
+    implementation libs.jieba.analysis
+
     // SpringDoc OpenAPI - Swagger接口文档
     implementation libs.springdoc
 

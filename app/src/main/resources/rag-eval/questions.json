@@ -1,0 +1,307 @@
+{
+  "name": "RAG 检索质量评测集",
+  "description": "50 道中文技术问答，覆盖 Java/Spring/数据库/分布式/AI 等方向，用于量化对比纯向量检索 vs 混合检索（+Rerank）的召回质量。",
+  "version": "1.0",
+  "questions": [
+    {
+      "id": 1,
+      "question": "Spring Boot 的自动配置原理是什么？",
+      "expectedKeywords": ["自动配置", "AutoConfiguration", "spring.factories", "条件注解", "Conditional"],
+      "category": "Spring"
+    },
+    {
+      "id": 2,
+      "question": "@Transactional 注解在什么情况下会失效？",
+      "expectedKeywords": ["事务失效", "同类调用", "非public", "异常被捕获", "传播行为"],
+      "category": "Spring"
+    },
+    {
+      "id": 3,
+      "question": "Spring Bean 的生命周期是怎样的？",
+      "expectedKeywords": ["实例化", "属性注入", "初始化", "BeanPostProcessor", "销毁"],
+      "category": "Spring"
+    },
+    {
+      "id": 4,
+      "question": "什么是循环依赖？Spring 如何解决？",
+      "expectedKeywords": ["循环依赖", "三级缓存", "提前曝光", "singletonObjects", "earlySingletonObjects"],
+      "category": "Spring"
+    },
+    {
+      "id": 5,
+      "question": "Spring AOP 的底层实现原理是什么？",
+      "expectedKeywords": ["动态代理", "JDK动态代理", "CGLIB", "切面", "通知"],
+      "category": "Spring"
+    },
+    {
+      "id": 6,
+      "question": "JVM 的内存结构包括哪些区域？",
+      "expectedKeywords": ["堆", "栈", "方法区", "程序计数器", "本地方法栈", "元空间"],
+      "category": "Java"
+    },
+    {
+      "id": 7,
+      "question": "Java 中的垃圾回收算法有哪些？",
+      "expectedKeywords": ["标记清除", "标记整理", "复制算法", "分代收集", "G1", "ZGC"],
+      "category": "Java"
+    },
+    {
+      "id": 8,
+      "question": "synchronized 和 ReentrantLock 的区别是什么？",
+      "expectedKeywords": ["synchronized", "ReentrantLock", "公平锁", "可中断", "条件变量"],
+      "category": "Java"
+    },
+    {
+      "id": 9,
+      "question": "HashMap 的底层数据结构是什么？",
+      "expectedKeywords": ["数组", "链表", "红黑树", "hash", "扩容", "负载因子"],
+      "category": "Java"
+    },
+    {
+      "id": 10,
+      "question": "Java 中的 volatile 关键字有什么作用？",
+      "expectedKeywords": ["volatile", "可见性", "禁止指令重排", "内存屏障", "happens-before"],
+      "category": "Java"
+    },
+    {
+      "id": 11,
+      "question": "MySQL 的索引底层数据结构是什么？",
+      "expectedKeywords": ["B+Tree", "聚簇索引", "非聚簇索引", "回表", "覆盖索引"],
+      "category": "数据库"
+    },
+    {
+      "id": 12,
+      "question": "MySQL 的事务隔离级别有哪些？",
+      "expectedKeywords": ["读未提交", "读已提交", "可重复读", "串行化", "MVCC", "幻读"],
+      "category": "数据库"
+    },
+    {
+      "id": 13,
+      "question": "Redis 有哪些数据类型？各自适用什么场景？",
+      "expectedKeywords": ["String", "Hash", "List", "Set", "ZSet", "缓存", "排行榜"],
+      "category": "数据库"
+    },
+    {
+      "id": 14,
+      "question": "Redis 的持久化机制有哪些？",
+      "expectedKeywords": ["RDB", "AOF", "快照", "追加日志", "混合持久化"],
+      "category": "数据库"
+    },
+    {
+      "id": 15,
+      "question": "什么是缓存穿透、缓存击穿、缓存雪崩？如何解决？",
+      "expectedKeywords": ["缓存穿透", "布隆过滤器", "缓存击穿", "互斥锁", "缓存雪崩", "随机过期"],
+      "category": "数据库"
+    },
+    {
+      "id": 16,
+      "question": "RESTful API 的设计原则是什么？",
+      "expectedKeywords": ["资源", "HTTP方法", "无状态", "统一接口", "状态码"],
+      "category": "架构"
+    },
+    {
+      "id": 17,
+      "question": "什么是微服务架构？有哪些优缺点？",
+      "expectedKeywords": ["微服务", "独立部署", "服务拆分", "分布式事务", "服务治理"],
+      "category": "架构"
+    },
+    {
+      "id": 18,
+      "question": "如何保证分布式系统中的数据一致性？",
+      "expectedKeywords": ["CAP", "BASE", "分布式事务", "最终一致", "TCC", "Saga"],
+      "category": "分布式"
+    },
+    {
+      "id": 19,
+      "question": "什么是消息队列？有哪些典型应用场景？",
+      "expectedKeywords": ["消息队列", "解耦", "异步", "削峰", "RabbitMQ", "Kafka"],
+      "category": "分布式"
+    },
+    {
+      "id": 20,
+      "question": "RPC 和 HTTP 的区别是什么？",
+      "expectedKeywords": ["RPC", "HTTP", "序列化", "传输协议", "服务调用"],
+      "category": "分布式"
+    },
+    {
+      "id": 21,
+      "question": "什么是 DDD 领域驱动设计？",
+      "expectedKeywords": ["领域驱动设计", "聚合", "实体", "值对象", "限界上下文"],
+      "category": "架构"
+    },
+    {
+      "id": 22,
+      "question": "如何设计一个高并发系统？",
+      "expectedKeywords": ["高并发", "负载均衡", "缓存", "限流", "降级", "异步"],
+      "category": "架构"
+    },
+    {
+      "id": 23,
+      "question": "什么是 OAuth2.0 认证流程？",
+      "expectedKeywords": ["OAuth2.0", "授权码", "AccessToken", "RefreshToken", "客户端"],
+      "category": "安全"
+    },
+    {
+      "id": 24,
+      "question": "JWT 的结构是什么？如何防止被篡改？",
+      "expectedKeywords": ["JWT", "Header", "Payload", "Signature", "签名", "密钥"],
+      "category": "安全"
+    },
+    {
+      "id": 25,
+      "question": "CSRF 和 XSS 攻击是什么？如何防范？",
+      "expectedKeywords": ["CSRF", "XSS", "跨站请求伪造", "脚本注入", "Token", "转义"],
+      "category": "安全"
+    },
+    {
+      "id": 26,
+      "question": "Docker 的核心概念有哪些？",
+      "expectedKeywords": ["镜像", "容器", "Dockerfile", "docker-compose", "分层存储"],
+      "category": "运维"
+    },
+    {
+      "id": 27,
+      "question": "CI/CD 流水线包含哪些环节？",
+      "expectedKeywords": ["持续集成", "持续交付", "构建", "测试", "部署", "Jenkins"],
+      "category": "运维"
+    },
+    {
+      "id": 28,
+      "question": "Kubernetes 的核心组件有哪些？",
+      "expectedKeywords": ["Pod", "Service", "Deployment", "kubelet", "etcd"],
+      "category": "运维"
+    },
+    {
+      "id": 29,
+      "question": "什么是 RAG 技术？和传统搜索有什么区别？",
+      "expectedKeywords": ["RAG", "检索增强生成", "向量检索", "语义搜索", "大模型"],
+      "category": "AI"
+    },
+    {
+      "id": 30,
+      "question": "向量数据库和传统数据库有什么区别？",
+      "expectedKeywords": ["向量数据库", "embedding", "相似度", "ANN", "pgvector", "HNSW"],
+      "category": "AI"
+    },
+    {
+      "id": 31,
+      "question": "什么是 Embedding？有哪些常见的 Embedding 模型？",
+      "expectedKeywords": ["Embedding", "向量化", "语义表示", "text-embedding", "维度"],
+      "category": "AI"
+    },
+    {
+      "id": 32,
+      "question": "大模型的 Token 是什么？如何计算 Token 消耗？",
+      "expectedKeywords": ["Token", "分词", "上下文窗口", "tokenizer", "BPE"],
+      "category": "AI"
+    },
+    {
+      "id": 33,
+      "question": "什么是 Prompt Engineering？有哪些常用技巧？",
+      "expectedKeywords": ["Prompt", "提示工程", "Few-shot", "Chain-of-Thought", "角色设定"],
+      "category": "AI"
+    },
+    {
+      "id": 34,
+      "question": "什么是混合检索？为什么需要它？",
+      "expectedKeywords": ["混合检索", "向量检索", "全文检索", "BM25", "RRF", "双路召回"],
+      "category": "AI"
+    },
+    {
+      "id": 35,
+      "question": "什么是 Rerank（重排序）？Bi-encoder 和 Cross-encoder 的区别是什么？",
+      "expectedKeywords": ["Rerank", "重排序", "Bi-encoder", "Cross-encoder", "精排", "相关性"],
+      "category": "AI"
+    },
+    {
+      "id": 36,
+      "question": "TCP 三次握手和四次挥手的过程是怎样的？",
+      "expectedKeywords": ["TCP", "三次握手", "SYN", "ACK", "四次挥手", "TIME_WAIT"],
+      "category": "网络"
+    },
+    {
+      "id": 37,
+      "question": "HTTP/1.1 和 HTTP/2 的主要区别是什么？",
+      "expectedKeywords": ["HTTP/1.1", "HTTP/2", "多路复用", "头部压缩", "服务端推送"],
+      "category": "网络"
+    },
+    {
+      "id": 38,
+      "question": "HTTPS 的加密原理是什么？",
+      "expectedKeywords": ["HTTPS", "TLS", "非对称加密", "对称加密", "证书", "CA"],
+      "category": "网络"
+    },
+    {
+      "id": 39,
+      "question": "如何排查 Java 应用的内存泄漏？",
+      "expectedKeywords": ["内存泄漏", "jmap", "jstack", "MAT", "堆转储", "GC日志"],
+      "category": "Java"
+    },
+    {
+      "id": 40,
+      "question": "什么是设计模式？常用的有哪些？",
+      "expectedKeywords": ["设计模式", "单例", "工厂", "观察者", "策略", "模板方法"],
+      "category": "Java"
+    },
+    {
+      "id": 41,
+      "question": "MySQL 的慢查询如何定位和优化？",
+      "expectedKeywords": ["慢查询日志", "EXPLAIN", "索引优化", "执行计划", "profiling"],
+      "category": "数据库"
+    },
+    {
+      "id": 42,
+      "question": "什么是 N+1 查询问题？如何解决？",
+      "expectedKeywords": ["N+1", "懒加载", "JOIN FETCH", "批量查询", "EntityGraph"],
+      "category": "数据库"
+    },
+    {
+      "id": 43,
+      "question": "Kafka 如何保证消息不丢失？",
+      "expectedKeywords": ["Kafka", "acks", "副本", "ISR", "min.insync.replicas", "幂等"],
+      "category": "分布式"
+    },
+    {
+      "id": 44,
+      "question": "分布式锁的实现方式有哪些？",
+      "expectedKeywords": ["分布式锁", "Redis", "Zookeeper", "Redisson", "看门狗", "续期"],
+      "category": "分布式"
+    },
+    {
+      "id": 45,
+      "question": "什么是 Serverless？有哪些应用场景？",
+      "expectedKeywords": ["Serverless", "函数计算", "无服务器", "事件驱动", "弹性伸缩"],
+      "category": "架构"
+    },
+    {
+      "id": 46,
+      "question": "Linux 中如何查看系统资源使用情况？",
+      "expectedKeywords": ["Linux", "top", "free", "df", "iostat", "netstat"],
+      "category": "运维"
+    },
+    {
+      "id": 47,
+      "question": "Git 的常用工作流程有哪些？",
+      "expectedKeywords": ["Git", "Git Flow", "GitHub Flow", "merge", "rebase", "分支"],
+      "category": "运维"
+    },
+    {
+      "id": 48,
+      "question": "什么是单元测试？JUnit 的常用注解有哪些？",
+      "expectedKeywords": ["单元测试", "JUnit", "@Test", "@BeforeEach", "@Mock", "@DisplayName"],
+      "category": "测试"
+    },
+    {
+      "id": 49,
+      "question": "TDD（测试驱动开发）的流程是什么？",
+      "expectedKeywords": ["TDD", "红绿重构", "先写测试", "重构", "小步前进"],
+      "category": "测试"
+    },
+    {
+      "id": 50,
+      "question": "PostgreSQL 和 MySQL 的主要区别有哪些？",
+      "expectedKeywords": ["PostgreSQL", "MySQL", "MVCC", "JSONB", "扩展性", "存储引擎"],
+      "category": "数据库"
+    }
+  ]
+}

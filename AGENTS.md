@@ -18,12 +18,15 @@ Spring Boot 4.1.0 + Java 25 + Spring AI 2.0.0 + React 面试平台。
 ```bash
 ./gradlew :app:compileJava
 ./gradlew :app:test --no-daemon
-./gradlew :app:bootRun
+./gradlew :app:test --no-daemon --tests "interview.guide.modules.xxx.YyyTest"  # 运行单个测试
+./gradlew :app:bootRun  # 自动从根目录 .env 注入环境变量
 ```
 
 ```bash
 cd frontend && pnpm run dev
-cd frontend && pnpm run build
+cd frontend && pnpm run build  # 等价于 tsc && vite build（含类型检查）
+cd frontend && pnpm run test:e2e  # Playwright 端到端
+cd frontend && pnpm run test:interview-history  # 前端单测示例（node --test，见 test:* 脚本）
 ```
 
 ```bash
@@ -70,6 +73,7 @@ docker compose -f docker-compose.dev.yml up -d
 
 - 配置集中在 `application.yml`、`.env` 和 `@ConfigurationProperties` 类中。
 - API Key、数据库密码等敏感信息只放 `.env`，不得提交到 Git。
+- `bootRun` 会自动解析根目录 `.env` 注入环境变量，本地缺 API Key 优先检查 `.env`。
 - 不要在 Service 中散落 `@Value`。
 - 本地默认后端端口是 `8080`：`server.port: ${SERVER_PORT:8080}`。
 - 开发环境 `ddl-auto` 可为 `update`，生产环境不能依赖自动建表。
@@ -88,7 +92,8 @@ docker compose -f docker-compose.dev.yml up -d
 - 测试意图用中文 `@DisplayName` 描述，复杂场景用 `@Nested` 分组。
 - 集成测试使用 H2 配置；限流相关测试需要真实 Redis。
 - 改后端公共能力时至少运行 `./gradlew :app:test --no-daemon`。
-- 改前端时至少运行 `cd frontend && pnpm run build`。
+- 改前端时至少运行 `cd frontend && pnpm run build`（等价于 `tsc && vite build`，含类型检查）。
+- 前端单测用 `node --test`（`package.json` 的 `test:*` 脚本），端到端用 Playwright `pnpm run test:e2e`。
 
 ## Never Do
 

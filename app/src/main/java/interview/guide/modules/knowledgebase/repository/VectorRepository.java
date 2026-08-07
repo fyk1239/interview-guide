@@ -7,6 +7,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
 /**
  * 向量存储Repository
  * 负责向量数据的增删改查操作
@@ -105,5 +112,117 @@ public class VectorRepository {
             throw new BusinessException(
                 ErrorCode.KNOWLEDGE_BASE_VECTORIZATION_FAILED, "提升临时向量数据失败");
         }
+    }
+
+    /**
+     * 全文检索命中记录。
+     */
+    public record FtsHit(UUID id, String content, String metadata, double ftsScore) {}
+
+    /**
+     * FTS 列回填用的行。
+     */
+    public record FtsTextRow(UUID id, String ftsText) {}
+
+    /**
+     * 按向量化任务 ID 批量写入 fts_text。
+     *
+     * @param rows id → fts_text 映射列表
+     */
+    public int[] batchUpdateFtsText(List<FtsTextRow> rows) {
+        String sql = "UPDATE vector_store SET fts_text = ? WHERE id = ?::uuid";
+        List<Object[]> batchArgs = new ArrayList<>();
+        for (var row : rows) {
+            batchArgs.add(new Object[]{row.ftsText(), row.id().toString()});
+        }
+        int[] results = jdbcTemplate.batchUpdate(sql, batchArgs);
+        log.debug("批量更新 fts_text: {} 行", rows.size());
+        return results;
+    }
+
+    /**
+     * 全文检索——使用 PG 原生 ts_rank_cd 打分 + GIN 索引。
+     *
+     * <p>查询前由调用方用 jieba 分词并空格连接，PG 使用 {@code simple} parser 按空格切词。
+     *
+     * @param tokenQuery 空格连接的 jieba 分词 token 串
+     * @param kbIds      限定知识库 ID 列表（空则不限）
+     * @param limit      返回条数上限
+     * @return FTS 命中列表，按得分降序
+     */
+    public List<FtsHit> ftsSearch(String tokenQuery, List<Long> kbIds, int limit) {
+        StringBuilder sql = new StringBuilder("""
+            SELECT id, content, metadata,
+                   ts_rank_cd(to_tsvector('simple', fts_text), plainto_tsquery('simple', ?), 1) AS fts_score
+            FROM vector_store
+            WHERE fts_text IS NOT NULL
+              AND to_tsvector('simple', fts_text) @@ plainto_tsquery('simple', ?)
+            """);
+        List<Object> params = new ArrayList<>();
+        params.add(tokenQuery);
+        params.add(tokenQuery);
+
+        if (kbIds != null && !kbIds.isEmpty()) {
+            // metadata 是 json 类型，用 ->> 取文本；bigint 兼容旧数据
+            String kbPlaceholders = kbIds.stream().map(id -> "?").collect(Collectors.joining(", "));
+            sql.append(" AND ( metadata->>'kb_id' = ANY(ARRAY[").append(kbPlaceholders).append("])");
+            params.addAll(kbIds.stream().map(String::valueOf).toList());
+            sql.append(" OR (metadata->>'kb_id_long')::bigint = ANY(ARRAY[").append(kbPlaceholders).append("]) )");
+            params.addAll(kbIds.stream().map(Object.class::cast).toList());
+        }
+
+        sql.append(" ORDER BY fts_score DESC LIMIT ?");
+        params.add(limit);
+
+        try {
+            return jdbcTemplate.query(sql.toString(), this::mapFtsHit, params.toArray());
+        } catch (Exception e) {
+            log.warn("FTS 检索失败，返回空结果: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    /**
+     * 统计 fts_text 为空的向量行数（用于回填调度器判断是否还有活要干）。
+     */
+    public int countMissingFts() {
+        String sql = "SELECT COUNT(*) FROM vector_store WHERE fts_text IS NULL";
+        Integer count = jdbcTemplate.queryForObject(sql, Integer.class);
+        return count == null ? 0 : count;
+    }
+
+    /**
+     * 查找 fts_text 为空的向量行（用于回填调度器）。
+     */
+    public List<UUID> findMissingFtsIds(int limit) {
+        String sql = "SELECT id FROM vector_store WHERE fts_text IS NULL LIMIT ?";
+        return jdbcTemplate.queryForList(sql, UUID.class, limit);
+    }
+
+    /**
+     * 查找 fts_text 为空的向量行，返回 (id, content) 对（用于回填调度器）。
+     */
+    public List<Object[]> findMissingFtsIdContentPairs(int limit) {
+        String sql = "SELECT id, content FROM vector_store WHERE fts_text IS NULL LIMIT ?";
+        return jdbcTemplate.query(sql, (rs, rowNum) -> new Object[]{
+            rs.getObject("id", UUID.class),
+            rs.getString("content")
+        }, limit);
+    }
+
+    /**
+     * 按 ID 更新单行 fts_text。
+     */
+    public int updateFtsText(UUID id, String ftsText) {
+        String sql = "UPDATE vector_store SET fts_text = ? WHERE id = ?::uuid";
+        return jdbcTemplate.update(sql, ftsText, id.toString());
+    }
+
+    private FtsHit mapFtsHit(ResultSet rs, int rowNum) throws SQLException {
+        return new FtsHit(
+            rs.getObject("id", UUID.class),
+            rs.getString("content"),
+            rs.getString("metadata"),
+            rs.getDouble("fts_score"));
     }
 }

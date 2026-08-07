@@ -2,8 +2,10 @@ package interview.guide.modules.knowledgebase.service;
 
 import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
+import interview.guide.common.nlp.ChineseTextTokenizer;
 import interview.guide.common.transaction.TransactionalExecutor;
 import interview.guide.modules.knowledgebase.repository.VectorRepository;
+import interview.guide.modules.knowledgebase.repository.VectorRepository.FtsTextRow;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.transformer.splitter.TextSplitter;
@@ -13,6 +15,7 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -34,26 +37,33 @@ public class KnowledgeBaseVectorService {
     private static final String METADATA_KB_ID = "kb_id";
     private static final String METADATA_TARGET_KB_ID = "kb_target_id";
     private static final String METADATA_VECTOR_JOB_ID = "kb_vector_job_id";
+    private static final String METADATA_CHUNK_INDEX = "chunk_index";
     private final VectorStore vectorStore;
     private final TextSplitter textSplitter;
     private final VectorRepository vectorRepository;
     private final TransactionalExecutor transactionalExecutor;
+    private final ChineseTextTokenizer tokenizer;
 
     @Autowired
     public KnowledgeBaseVectorService(
         VectorStore vectorStore,
         VectorRepository vectorRepository,
-        TransactionalExecutor transactionalExecutor
+        TransactionalExecutor transactionalExecutor,
+        KnowledgeBaseQueryProperties queryProperties,
+        ChineseTextTokenizer tokenizer
     ) {
         this.vectorStore = vectorStore;
         this.vectorRepository = vectorRepository;
         this.transactionalExecutor = transactionalExecutor;
-        // 使用 TokenTextSplitter 默认配置，每个 chunk 约 800 tokens，基于标点边界切分（无重叠）
-        this.textSplitter = TokenTextSplitter.builder().build();
+        this.tokenizer = tokenizer;
+        this.textSplitter = TokenTextSplitter.builder()
+            .withChunkSize(queryProperties.getChunk().getDefaultChunkSize())
+            .build();
     }
 
     KnowledgeBaseVectorService(VectorStore vectorStore, VectorRepository vectorRepository) {
-        this(vectorStore, vectorRepository, null);
+        this(vectorStore, vectorRepository, null, new KnowledgeBaseQueryProperties(),
+            new ChineseTextTokenizer());
     }
 
     /**
@@ -82,6 +92,7 @@ public class KnowledgeBaseVectorService {
             applyPendingMetadata(chunks, knowledgeBaseId, jobId);
 
             // 3. 分批向量化并存储（阿里云 DashScope API 限制 batch size <= 10）
+            //    每批写入后同步回填 fts_text 列（失败仅告警，由回填调度器兜底）
             int totalChunks = chunks.size();
             int batchCount = (totalChunks + MAX_BATCH_SIZE - 1) / MAX_BATCH_SIZE; // 向上取整
             log.info("开始分批向量化: 总共 {} 个chunks，分 {} 批处理，每批最多 {} 个",
@@ -92,6 +103,7 @@ public class KnowledgeBaseVectorService {
                 List<Document> batch = chunks.subList(start, end);
                 log.debug("处理第 {}/{} 批: chunks {}-{}", i + 1, batchCount, start + 1, end);
                 vectorStore.add(batch);
+                writeFtsTextForBatch(batch, knowledgeBaseId);
             }
             activateVectorJob(knowledgeBaseId, jobId);
             log.info("知识库向量化完成: kbId={}, jobId={}, chunks={}, batches={}",
@@ -107,11 +119,38 @@ public class KnowledgeBaseVectorService {
 
     private void applyPendingMetadata(List<Document> chunks, Long knowledgeBaseId, String jobId) {
         String pendingKbId = TEMP_KB_ID_PREFIX + knowledgeBaseId + ":" + jobId;
-        chunks.forEach(chunk -> {
+        for (int i = 0; i < chunks.size(); i++) {
+            var chunk = chunks.get(i);
+            // 预分配 UUID，使 vectorStore.add 后可按 id 回填 fts_text
+            chunk.setId(UUID.randomUUID().toString());
             chunk.getMetadata().put(METADATA_KB_ID, pendingKbId);
             chunk.getMetadata().put(METADATA_TARGET_KB_ID, knowledgeBaseId.toString());
             chunk.getMetadata().put(METADATA_VECTOR_JOB_ID, jobId);
-        });
+            chunk.getMetadata().put(METADATA_CHUNK_INDEX, i);
+        }
+    }
+
+    /**
+     * 向量写入后回填 fts_text 列（中文分词 + PG 全文检索倒排索引）。
+     * 失败仅告警——不回滚向量写入，由 {@link KnowledgeBaseFtsBackfillScheduler} 兜底。
+     */
+    private void writeFtsTextForBatch(List<Document> batch, Long knowledgeBaseId) {
+        try {
+            List<FtsTextRow> rows = new ArrayList<>(batch.size());
+            for (var doc : batch) {
+                String ftsText = tokenizer.tokenize(doc.getText());
+                if (!ftsText.isBlank()) {
+                    UUID id = UUID.fromString(doc.getId());
+                    rows.add(new FtsTextRow(id, ftsText));
+                }
+            }
+            if (!rows.isEmpty()) {
+                vectorRepository.batchUpdateFtsText(rows);
+            }
+        } catch (Exception e) {
+            log.warn("FTS 文本回填失败（将在回填调度器中补齐）: kbId={}, error={}",
+                knowledgeBaseId, e.getMessage());
+        }
     }
     
     /**

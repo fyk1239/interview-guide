@@ -13,6 +13,7 @@ aws-sdk = "2.29.51"
 itext = "8.0.5"
 pinyin4j = "2.5.0"
 springdoc = "3.0.2"
+jieba-analysis = "1.0.2"
 
 [libraries]
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
@@ -23,6 +24,7 @@ pinyin4j = { module = "com.belerweb:pinyin4j", version.ref = "pinyin4j" }
 springdoc = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
 spring-ai-agent-utils-bom = { module = "org.springaicommunity:spring-ai-agent-utils-bom", version.ref = "springAiAgentUtils" }
 spring-ai-agent-utils = { module = "org.springaicommunity:spring-ai-agent-utils" }
+jieba-analysis = { module = "com.huaban:jieba-analysis", version.ref = "jieba-analysis" }
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }

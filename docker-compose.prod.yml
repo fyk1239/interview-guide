@@ -123,6 +123,16 @@ services:
       AI_MODEL: ${AI_MODEL:-qwen3.5-flash}
       APP_AI_CONFIG_ENCRYPTION_KEY: ${APP_AI_CONFIG_ENCRYPTION_KEY}
 
+      # RAG 检索质量（混合检索 + 重排序，默认关闭保持纯向量行为）
+      APP_AI_RAG_CHUNK_SIZE: ${APP_AI_RAG_CHUNK_SIZE:-500}
+      APP_AI_RAG_CHUNK_OVERLAP: ${APP_AI_RAG_CHUNK_OVERLAP:-50}
+      APP_AI_RAG_HYBRID_ENABLED: ${APP_AI_RAG_HYBRID_ENABLED:-false}
+      APP_AI_RAG_HYBRID_TOPK_VECTOR: ${APP_AI_RAG_HYBRID_TOPK_VECTOR:-20}
+      APP_AI_RAG_HYBRID_TOPK_FTS: ${APP_AI_RAG_HYBRID_TOPK_FTS:-20}
+      APP_AI_RAG_HYBRID_CANDIDATE_CAP: ${APP_AI_RAG_HYBRID_CANDIDATE_CAP:-30}
+      APP_AI_RAG_RERANK_ENABLED: ${APP_AI_RAG_RERANK_ENABLED:-false}
+      APP_AI_RAG_RERANK_TOPN: ${APP_AI_RAG_RERANK_TOPN:-10}
+
       # 可选 LLM Provider
       PROVIDER_KIMI_API_KEY: ${PROVIDER_KIMI_API_KEY:-}
       PROVIDER_KIMI_MODEL: ${PROVIDER_KIMI_MODEL:-kimi-k2.6}
@@ -146,11 +156,29 @@ services:
           memory: 512M
     restart: unless-stopped
 
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: interview-dozzle
+    environment:
+      DOZZLE_BASE: /logs
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    expose:
+      - "8080"
+    deploy:
+      resources:
+        limits:
+          memory: 32M
+    restart: unless-stopped
+
   frontend:
     image: ${FRONTEND_IMAGE:-ghcr.io/fyk1239/interview-guide-frontend:latest}
     container_name: interview-frontend
     depends_on:
       - app
+      - dozzle
+    volumes:
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     ports:
       - "80:80"
     deploy:

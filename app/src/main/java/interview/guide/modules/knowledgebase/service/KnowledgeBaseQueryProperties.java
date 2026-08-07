@@ -36,4 +36,55 @@ public class KnowledgeBaseQueryProperties {
         private boolean enabled = true;
         private int maxMessages = 10;
     }
+
+    /** 分块配置 */
+    private Chunk chunk = new Chunk();
+
+    /** 混合检索配置 */
+    private Hybrid hybrid = new Hybrid();
+
+    /** 重排序配置 */
+    private Rerank rerank = new Rerank();
+
+    @Data
+    public static class Chunk {
+        /** 每个 chunk 的目标 token 数（TokenTextSplitter 默认 800） */
+        private int defaultChunkSize = 500;
+        /** 相邻 chunk 的重叠 token 数 */
+        private int overlap = 50;
+    }
+
+    @Data
+    public static class Hybrid {
+        private boolean enabled = false;
+        /** 向量路召回 top-K */
+        private int topKVector = 20;
+        /** FTS 路召回 top-K */
+        private int topKFts = 20;
+        /** 融合后候选数量上限（送入 rerank 或 LLM 之前） */
+        private int candidateCap = 30;
+        /** 融合方式：rrf | weighted */
+        private String fusion = "rrf";
+        /** RRF 的 k 参数（rank 平滑项） */
+        private int rrfK = 60;
+        /** 加权融合时向量路权重（rrf 模式忽略） */
+        private double vectorWeight = 0.5;
+        /** 加权融合时 FTS 路权重（rrf 模式忽略） */
+        private double ftsWeight = 0.5;
+    }
+
+    @Data
+    public static class Rerank {
+        private boolean enabled = false;
+        private String model = "qwen3-rerank";
+        private String baseUrl = "https://dashscope.aliyuncs.com/compatible-api/v1";
+        /** API Key，默认复用 AI_BAILIAN_API_KEY */
+        private String apiKey = null;
+        /** 精排后返回 top-N */
+        private int topN = 10;
+        /** HTTP 超时秒数 */
+        private int timeoutSeconds = 10;
+        /** 低于此分的候选直接丢弃 */
+        private double minRelevanceScore = 0.5;
+    }
 }
