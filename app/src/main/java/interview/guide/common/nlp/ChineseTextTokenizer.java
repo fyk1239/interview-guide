@@ -1,7 +1,7 @@
 package interview.guide.common.nlp;
 
 import com.huaban.analysis.jieba.JiebaSegmenter;
-import com.huaban.analysis.jieba.SegToken;
+
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -53,7 +53,7 @@ public class ChineseTextTokenizer implements TextTokenizer {
     }
     try {
       return segmenter.process(text, mode).stream()
-          .map(SegToken::getWord)
+          .map(t -> t.word)
           .collect(Collectors.joining(" "));
     } catch (Exception e) {
       // 极端情况降级：保留字母/数字/连续汉字作为 token

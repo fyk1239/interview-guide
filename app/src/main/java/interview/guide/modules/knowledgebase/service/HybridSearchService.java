@@ -122,18 +122,15 @@ public class HybridSearchService {
     }
 
     var sorted = rrfMap.values().stream()
-        .sorted(Comparator.comparingDouble(RrfEntry::rrfScore).reversed())
+        .sorted(Comparator.comparingDouble((RrfEntry e) -> -e.rrfScore))
         .limit(cap)
         .toList();
 
     List<Document> results = new ArrayList<>();
     for (var entry : sorted) {
       if (entry.content != null && !entry.content.isBlank()) {
-        var doc = new Document(entry.content);
-        doc.setId(entry.id.toString());
-        if (entry.metadata != null) {
-          doc.getMetadata().putAll(entry.metadata);
-        }
+        var doc = new Document(entry.id.toString(), entry.content,
+            entry.metadata != null ? new java.util.HashMap<>(entry.metadata) : new java.util.HashMap<>());
         results.add(doc);
       }
     }
@@ -163,10 +160,9 @@ public class HybridSearchService {
         // 从原候选按 index 取 metadata 等附加信息
         if (hit.index() >= 0 && hit.index() < candidates.size()) {
           var orig = candidates.get(hit.index());
-          var doc = new Document(hit.document());
-          doc.setId(orig.getId());
-          doc.getMetadata().putAll(orig.getMetadata());
-          doc.getMetadata().put("rerank_score", hit.relevanceScore());
+          var metadata = new java.util.HashMap<>(orig.getMetadata());
+          metadata.put("rerank_score", hit.relevanceScore());
+          var doc = new Document(orig.getId(), hit.document(), metadata);
           reranked.add(doc);
         } else {
           reranked.add(new Document(hit.document()));

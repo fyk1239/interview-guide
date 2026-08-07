@@ -122,11 +122,15 @@ public class KnowledgeBaseVectorService {
         for (int i = 0; i < chunks.size(); i++) {
             var chunk = chunks.get(i);
             // 预分配 UUID，使 vectorStore.add 后可按 id 回填 fts_text
-            chunk.setId(UUID.randomUUID().toString());
-            chunk.getMetadata().put(METADATA_KB_ID, pendingKbId);
-            chunk.getMetadata().put(METADATA_TARGET_KB_ID, knowledgeBaseId.toString());
-            chunk.getMetadata().put(METADATA_VECTOR_JOB_ID, jobId);
-            chunk.getMetadata().put(METADATA_CHUNK_INDEX, i);
+            // Spring AI 2.0 Document 不可变 id，通过 mutate() 重建
+            var chunkWithId = chunk.mutate()
+                .id(UUID.randomUUID().toString())
+                .build();
+            chunkWithId.getMetadata().put(METADATA_KB_ID, pendingKbId);
+            chunkWithId.getMetadata().put(METADATA_TARGET_KB_ID, knowledgeBaseId.toString());
+            chunkWithId.getMetadata().put(METADATA_VECTOR_JOB_ID, jobId);
+            chunkWithId.getMetadata().put(METADATA_CHUNK_INDEX, i);
+            chunks.set(i, chunkWithId);
         }
     }
 
