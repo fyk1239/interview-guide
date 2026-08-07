@@ -7,10 +7,11 @@
 
 pluginManagement {
     repositories {
+        // gradlePluginPortal() 放前面：CI（GitHub Actions 美西节点）可直接命中
+        gradlePluginPortal()
         maven { url = uri('https://maven.aliyun.com/repository/public/') }
         maven { url = uri('https://maven.aliyun.com/repository/gradle-plugin/') }
         maven { url = uri('https://maven.aliyun.com/repository/spring-plugin/') }
-        gradlePluginPortal()
     }
 }
 
