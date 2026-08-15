@@ -50,8 +50,10 @@ public class KnowledgeBaseQueryProperties {
     public static class Chunk {
         /** 每个 chunk 的目标 token 数（TokenTextSplitter 默认 800） */
         private int defaultChunkSize = 500;
-        /** 相邻 chunk 的重叠 token 数 */
-        private int overlap = 50;
+        /** 相邻 chunk 的重叠 token 数（超长节细切时生效） */
+        private int overlap = 100;
+        /** 是否启用 Markdown 结构化分块（按标题切节，替代纯长度切块） */
+        private boolean markdownAware = true;
     }
 
     @Data

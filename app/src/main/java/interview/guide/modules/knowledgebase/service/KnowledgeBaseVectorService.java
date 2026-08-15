@@ -3,6 +3,7 @@ package interview.guide.modules.knowledgebase.service;
 import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
 import interview.guide.common.nlp.ChineseTextTokenizer;
+import interview.guide.common.nlp.MarkdownAwareTextSplitter;
 import interview.guide.common.transaction.TransactionalExecutor;
 import interview.guide.modules.knowledgebase.repository.VectorRepository;
 import interview.guide.modules.knowledgebase.repository.VectorRepository.FtsTextRow;
@@ -56,9 +57,16 @@ public class KnowledgeBaseVectorService {
         this.vectorRepository = vectorRepository;
         this.transactionalExecutor = transactionalExecutor;
         this.tokenizer = tokenizer;
-        this.textSplitter = TokenTextSplitter.builder()
-            .withChunkSize(queryProperties.getChunk().getDefaultChunkSize())
-            .build();
+        int chunkSize = queryProperties.getChunk().getDefaultChunkSize();
+        int overlap = queryProperties.getChunk().getOverlap();
+        if (queryProperties.getChunk().isMarkdownAware()) {
+            // Markdown 结构化分块：按标题切节 + 超长节细切（含 overlap）
+            this.textSplitter = new MarkdownAwareTextSplitter(chunkSize, overlap);
+        } else {
+            this.textSplitter = TokenTextSplitter.builder()
+                .withChunkSize(chunkSize)
+                .build();
+        }
     }
 
     KnowledgeBaseVectorService(VectorStore vectorStore, VectorRepository vectorRepository) {

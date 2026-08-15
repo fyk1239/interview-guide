@@ -99,6 +99,9 @@ app:
     default-provider: dashscope
     default-embedding-provider: dashscope
     embedding-dimensions: ${APP_AI_EMBEDDING_DIMENSIONS:1024}
+    # Embedding 结果缓存（按内容 SHA-256 哈希，命中后不再调用厂商 Embedding API）
+    embedding-cache:
+      enabled: ${APP_AI_EMBEDDING_CACHE_ENABLED:true}
     security:
       api-key-encryption-key: ${APP_AI_CONFIG_ENCRYPTION_KEY:}
       require-encryption-key: ${APP_AI_CONFIG_REQUIRE_ENCRYPTION_KEY:true}
@@ -177,7 +180,8 @@ app:
         min-score-default: ${APP_AI_RAG_MIN_SCORE_DEFAULT:0.28}
       chunk:
         default-chunk-size: ${APP_AI_RAG_CHUNK_SIZE:500}
-        overlap: ${APP_AI_RAG_CHUNK_OVERLAP:50}
+        overlap: ${APP_AI_RAG_CHUNK_OVERLAP:100}
+        markdown-aware: ${APP_AI_RAG_CHUNK_MARKDOWN_AWARE:true}
       hybrid:
         enabled: ${APP_AI_RAG_HYBRID_ENABLED:false}
         top-k-vector: ${APP_AI_RAG_HYBRID_TOPK_VECTOR:20}
