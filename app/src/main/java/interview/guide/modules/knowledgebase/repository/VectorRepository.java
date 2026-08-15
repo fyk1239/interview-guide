@@ -151,6 +151,12 @@ public class VectorRepository {
      * @return FTS 命中列表，按得分降序
      */
     public List<FtsHit> ftsSearch(String tokenQuery, List<Long> kbIds, int limit) {
+        // 过滤低信息量 token（单字虚词、标点），避免 plainto_tsquery 的 AND 语义
+        // 因"的/是/什么"等虚词导致长问句永远不命中
+        String filteredQuery = filterFtsTokens(tokenQuery);
+        if (filteredQuery.isBlank()) {
+            return List.of();
+        }
         StringBuilder sql = new StringBuilder("""
             SELECT id, content, metadata,
                    ts_rank_cd(to_tsvector('simple', fts_text), plainto_tsquery('simple', ?), 1) AS fts_score
@@ -159,8 +165,8 @@ public class VectorRepository {
               AND to_tsvector('simple', fts_text) @@ plainto_tsquery('simple', ?)
             """);
         List<Object> params = new ArrayList<>();
-        params.add(tokenQuery);
-        params.add(tokenQuery);
+        params.add(filteredQuery);
+        params.add(filteredQuery);
 
         if (kbIds != null && !kbIds.isEmpty()) {
             // metadata 是 json 类型，用 ->> 取文本；bigint 兼容旧数据
@@ -224,5 +230,26 @@ public class VectorRepository {
             rs.getString("content"),
             rs.getString("metadata"),
             rs.getDouble("fts_score"));
+    }
+
+    /**
+     * 过滤低信息量 token，避免 plainto_tsquery 的 AND 语义导致长问句零命中。
+     *
+     * <p>jieba 对问句（如"Spring Boot 的自动配置原理是什么？"）会切出
+     * "的/是/什么/？" 等虚词与标点，plainto_tsquery 将它们用 AND 连接后，
+     * 要求文档同时包含全部 token——虚词在单个 chunk 中几乎不可能全出现，
+     * 导致 FTS 路恒为 0 命中。这里保留长度 ≥2 的词（英文 token 也按长度过滤，
+     * 中文术语如"自动/配置/原理"均为 2+ 字），过滤单字虚词与标点。
+     */
+    private static String filterFtsTokens(String tokenQuery) {
+        if (tokenQuery == null || tokenQuery.isBlank()) {
+            return "";
+        }
+        return java.util.Arrays.stream(tokenQuery.split("\\s+"))
+            .map(String::trim)
+            .filter(t -> !t.isEmpty())
+            .filter(t -> t.length() >= 2)
+            .distinct()
+            .collect(Collectors.joining(" "));
     }
 }

@@ -157,15 +157,17 @@ public class HybridSearchService {
         if (hit.relevanceScore() < rerankCfg.getMinRelevanceScore()) {
           continue;
         }
-        // 从原候选按 index 取 metadata 等附加信息
+        // 从原候选按 index 取文本与 metadata（DashScope rerank 响应不含 document 字段，
+        // hit.document() 恒为 null，不能用来构造 Document）
         if (hit.index() >= 0 && hit.index() < candidates.size()) {
           var orig = candidates.get(hit.index());
           var metadata = new java.util.HashMap<>(orig.getMetadata());
           metadata.put("rerank_score", hit.relevanceScore());
-          var doc = new Document(orig.getId(), hit.document(), metadata);
+          var doc = new Document(orig.getId(), orig.getText(), metadata);
           reranked.add(doc);
         } else {
-          reranked.add(new Document(hit.document()));
+          log.warn("Rerank 返回的 index 越界，跳过该命中: index={}, candidates={}",
+              hit.index(), candidates.size());
         }
       }
       // rerank 出结果太少时补齐剩余 RRF 候选
