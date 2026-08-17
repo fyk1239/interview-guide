@@ -1,9 +1,9 @@
-name: Deploy to Tencent Cloud
+﻿name: Deploy to Tencent Cloud
 
 on:
   push:
     branches: [master]
-  workflow_dispatch:  # 支持手动触发
+  workflow_dispatch:  # 鏀寔鎵嬪姩瑙﹀彂
 
 env:
   REGISTRY: ghcr.io
@@ -11,7 +11,7 @@ env:
   FRONTEND_IMAGE: ghcr.io/${{ github.repository_owner }}/interview-guide-frontend
 
 jobs:
-  # ===== Job 1: 构建并推送镜像到 ghcr.io =====
+  # ===== Job 1: 鏋勫缓骞舵帹閫侀暅鍍忓埌 ghcr.io =====
   build-images:
     runs-on: ubuntu-latest
     permissions:
@@ -32,7 +32,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # ===== 构建 & 推送后端镜像 =====
+      # ===== 鏋勫缓 & 鎺ㄩ€佸悗绔暅鍍?=====
       - name: Build and push backend image
         uses: docker/build-push-action@v6
         with:
@@ -45,7 +45,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # ===== 构建 & 推送前端镜像 =====
+      # ===== 鏋勫缓 & 鎺ㄩ€佸墠绔暅鍍?=====
       - name: Build and push frontend image
         uses: docker/build-push-action@v6
         with:
@@ -57,14 +57,11 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ===== Job 2: 将镜像传输到服务器并重启（secrets 未配置时自动跳过） =====
-  # 服务器无法直连 ghcr.io（实测 0 字节/分钟），改为在 GitHub runner 上拉取镜像、
-  # docker save 压缩后 scp 上传，服务器 docker load 后重启，全程不依赖服务器访问 ghcr。
-  deploy:
+  # ===== Job 2: 灏嗛暅鍍忎紶杈撳埌鏈嶅姟鍣ㄥ苟閲嶅惎锛坰ecrets 鏈厤缃椂鑷姩璺宠繃锛?=====
+  # 鏈嶅姟鍣ㄦ棤娉曠洿杩?ghcr.io锛堝疄娴?0 瀛楄妭/鍒嗛挓锛夛紝鏀逛负鍦?GitHub runner 涓婃媺鍙栭暅鍍忋€?  # docker save 鍘嬬缉鍚?scp 涓婁紶锛屾湇鍔″櫒 docker load 鍚庨噸鍚紝鍏ㄧ▼涓嶄緷璧栨湇鍔″櫒璁块棶 ghcr銆?  deploy:
     needs: build-images
     runs-on: ubuntu-latest
-    # secrets 上下文不能用于 job 级 if，改为引入 env 后判断
-    env:
+    # secrets 涓婁笅鏂囦笉鑳界敤浜?job 绾?if锛屾敼涓哄紩鍏?env 鍚庡垽鏂?    env:
       SSH_HOST: ${{ secrets.SSH_HOST }}
       SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
       SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -81,46 +78,39 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Pull & export backend image
+      - name: Pull backend image
         if: ${{ env.SSH_HOST != '' && env.SSH_PRIVATE_KEY != '' }}
         run: |
           docker pull ${{ env.APP_IMAGE }}:latest
-          docker save ${{ env.APP_IMAGE }}:latest | gzip -1 > app-image.tar.gz
-          ls -lh app-image.tar.gz
 
-      - name: Pull & export frontend image
+      - name: Pull frontend image
         if: ${{ env.SSH_HOST != '' && env.SSH_PRIVATE_KEY != '' }}
         run: |
           docker pull ${{ env.FRONTEND_IMAGE }}:latest
-          docker save ${{ env.FRONTEND_IMAGE }}:latest | gzip -1 > frontend-image.tar.gz
-          ls -lh frontend-image.tar.gz
 
-      - name: Upload images to server
+      - name: Write SSH key
         if: ${{ env.SSH_HOST != '' && env.SSH_PRIVATE_KEY != '' }}
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ env.SSH_HOST }}
-          username: ${{ env.SSH_USERNAME }}
-          key: ${{ env.SSH_PRIVATE_KEY }}
-          source: "app-image.tar.gz,frontend-image.tar.gz"
-          target: /opt/interview-guide/images
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
 
-      - name: Load & restart on server
+      # 娴佸紡浼犺緭锛歞ocker save | gzip 缁?ssh 绠￠亾鐩翠紶鏈嶅姟鍣?docker load锛岄伩鍏嶅ぇ鏂囦欢钀界洏涓庢參閫?scp 鍗℃
+      - name: Transfer & load backend image
         if: ${{ env.SSH_HOST != '' && env.SSH_PRIVATE_KEY != '' }}
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ env.SSH_HOST }}
-          username: ${{ env.SSH_USERNAME }}
-          key: ${{ env.SSH_PRIVATE_KEY }}
-          script: |
-            set -e
-            cd /opt/interview-guide/images
-            docker load < app-image.tar.gz
-            docker load < frontend-image.tar.gz
-            cd /opt/interview-guide
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans
-            docker image prune -f
+        run: |
+          docker save ${{ env.APP_IMAGE }}:latest | gzip | ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${{ env.SSH_USERNAME }}@${{ env.SSH_HOST }} 'gunzip | docker load'
+
+      - name: Transfer & load frontend image
+        if: ${{ env.SSH_HOST != '' && env.SSH_PRIVATE_KEY != '' }}
+        run: |
+          docker save ${{ env.FRONTEND_IMAGE }}:latest | gzip | ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${{ env.SSH_USERNAME }}@${{ env.SSH_HOST }} 'gunzip | docker load'
+
+      - name: Restart on server
+        if: ${{ env.SSH_HOST != '' && env.SSH_PRIVATE_KEY != '' }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${{ env.SSH_USERNAME }}@${{ env.SSH_HOST }} 'set -e; cd /opt/interview-guide && docker compose -f docker-compose.prod.yml up -d --remove-orphans && docker image prune -f'
 
       - name: Skip notice
         if: ${{ env.SSH_HOST == '' }}
-        run: echo "::warning::SSH Secrets 未配置，跳过自动部署。请在仓库 Settings → Secrets 配置 SSH_HOST / SSH_USERNAME / SSH_PRIVATE_KEY"
+        run: echo "::warning::SSH Secrets 鏈厤缃紝璺宠繃鑷姩閮ㄧ讲銆傝鍦ㄤ粨搴?Settings 鈫?Secrets 閰嶇疆 SSH_HOST / SSH_USERNAME / SSH_PRIVATE_KEY"
