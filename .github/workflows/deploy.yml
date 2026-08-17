@@ -57,7 +57,9 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ===== Job 2: SSH 到服务器拉取并重启（secrets 未配置时自动跳过） =====
+  # ===== Job 2: 将镜像传输到服务器并重启（secrets 未配置时自动跳过） =====
+  # 服务器无法直连 ghcr.io（实测 0 字节/分钟），改为在 GitHub runner 上拉取镜像、
+  # docker save 压缩后 scp 上传，服务器 docker load 后重启，全程不依赖服务器访问 ghcr。
   deploy:
     needs: build-images
     runs-on: ubuntu-latest
@@ -71,7 +73,39 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy to server
+      - name: Log in to GitHub Container Registry
+        if: ${{ env.SSH_HOST != '' && env.SSH_PRIVATE_KEY != '' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull & export backend image
+        if: ${{ env.SSH_HOST != '' && env.SSH_PRIVATE_KEY != '' }}
+        run: |
+          docker pull ${{ env.APP_IMAGE }}:latest
+          docker save ${{ env.APP_IMAGE }}:latest | gzip -1 > app-image.tar.gz
+          ls -lh app-image.tar.gz
+
+      - name: Pull & export frontend image
+        if: ${{ env.SSH_HOST != '' && env.SSH_PRIVATE_KEY != '' }}
+        run: |
+          docker pull ${{ env.FRONTEND_IMAGE }}:latest
+          docker save ${{ env.FRONTEND_IMAGE }}:latest | gzip -1 > frontend-image.tar.gz
+          ls -lh frontend-image.tar.gz
+
+      - name: Upload images to server
+        if: ${{ env.SSH_HOST != '' && env.SSH_PRIVATE_KEY != '' }}
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ env.SSH_HOST }}
+          username: ${{ env.SSH_USERNAME }}
+          key: ${{ env.SSH_PRIVATE_KEY }}
+          source: "app-image.tar.gz,frontend-image.tar.gz"
+          target: /opt/interview-guide/images
+
+      - name: Load & restart on server
         if: ${{ env.SSH_HOST != '' && env.SSH_PRIVATE_KEY != '' }}
         uses: appleboy/ssh-action@v1
         with:
@@ -80,8 +114,10 @@ jobs:
           key: ${{ env.SSH_PRIVATE_KEY }}
           script: |
             set -e
-            cd /opt/interview-guide || exit 1
-            docker compose -f docker-compose.prod.yml pull
+            cd /opt/interview-guide/images
+            docker load < app-image.tar.gz
+            docker load < frontend-image.tar.gz
+            cd /opt/interview-guide
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
             docker image prune -f
 
