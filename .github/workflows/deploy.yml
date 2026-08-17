@@ -1,4 +1,4 @@
-﻿name: Deploy to Tencent Cloud
+name: Deploy to Tencent Cloud
 
 on:
   push:
