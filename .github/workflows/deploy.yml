@@ -3,7 +3,7 @@ name: Deploy to Tencent Cloud
 on:
   push:
     branches: [master]
-  workflow_dispatch:  # 鏀寔鎵嬪姩瑙﹀彂
+  workflow_dispatch:  # support manual trigger
 
 env:
   REGISTRY: ghcr.io
@@ -11,7 +11,7 @@ env:
   FRONTEND_IMAGE: ghcr.io/${{ github.repository_owner }}/interview-guide-frontend
 
 jobs:
-  # ===== Job 1: 鏋勫缓骞舵帹閫侀暅鍍忓埌 ghcr.io =====
+  # ===== Job 1: Build and push images to ghcr.io =====
   build-images:
     runs-on: ubuntu-latest
     permissions:
@@ -32,7 +32,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # ===== 鏋勫缓 & 鎺ㄩ€佸悗绔暅鍍?=====
+      # ===== Build and push backend image =====
       - name: Build and push backend image
         uses: docker/build-push-action@v6
         with:
@@ -45,7 +45,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # ===== 鏋勫缓 & 鎺ㄩ€佸墠绔暅鍍?=====
+      # ===== Build and push frontend image =====
       - name: Build and push frontend image
         uses: docker/build-push-action@v6
         with:
@@ -57,11 +57,16 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ===== Job 2: 灏嗛暅鍍忎紶杈撳埌鏈嶅姟鍣ㄥ苟閲嶅惎锛坰ecrets 鏈厤缃椂鑷姩璺宠繃锛?=====
-  # 鏈嶅姟鍣ㄦ棤娉曠洿杩?ghcr.io锛堝疄娴?0 瀛楄妭/鍒嗛挓锛夛紝鏀逛负鍦?GitHub runner 涓婃媺鍙栭暅鍍忋€?  # docker save 鍘嬬缉鍚?scp 涓婁紶锛屾湇鍔″櫒 docker load 鍚庨噸鍚紝鍏ㄧ▼涓嶄緷璧栨湇鍔″櫒璁块棶 ghcr銆?  deploy:
+  # ===== Job 2: Transfer images to server and restart =====
+  # The server cannot reach ghcr.io directly (measured 0 bytes/min).
+  # Solution: pull images on the GitHub runner (fast, overseas), stream them
+  # via `docker save | gzip | ssh server docker load`, then restart compose.
+  # Skipped automatically when SSH secrets are not configured.
+  deploy:
     needs: build-images
     runs-on: ubuntu-latest
-    # secrets 涓婁笅鏂囦笉鑳界敤浜?job 绾?if锛屾敼涓哄紩鍏?env 鍚庡垽鏂?    env:
+    # secrets context is not allowed in job-level `if`, so map them to env first.
+    env:
       SSH_HOST: ${{ secrets.SSH_HOST }}
       SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
       SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -95,13 +100,14 @@ jobs:
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-      # 娴佸紡浼犺緭锛歞ocker save | gzip 缁?ssh 绠￠亾鐩翠紶鏈嶅姟鍣?docker load锛岄伩鍏嶅ぇ鏂囦欢钀界洏涓庢參閫?scp 鍗℃
-      - name: Transfer & load backend image
+      # Stream: docker save | gzip over ssh pipe straight into docker load,
+      # avoiding slow scp of large tar files on the server.
+      - name: Transfer and load backend image
         if: ${{ env.SSH_HOST != '' && env.SSH_PRIVATE_KEY != '' }}
         run: |
           docker save ${{ env.APP_IMAGE }}:latest | gzip | ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${{ env.SSH_USERNAME }}@${{ env.SSH_HOST }} 'gunzip | docker load'
 
-      - name: Transfer & load frontend image
+      - name: Transfer and load frontend image
         if: ${{ env.SSH_HOST != '' && env.SSH_PRIVATE_KEY != '' }}
         run: |
           docker save ${{ env.FRONTEND_IMAGE }}:latest | gzip | ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${{ env.SSH_USERNAME }}@${{ env.SSH_HOST }} 'gunzip | docker load'
@@ -113,4 +119,4 @@ jobs:
 
       - name: Skip notice
         if: ${{ env.SSH_HOST == '' }}
-        run: echo "::warning::SSH Secrets 鏈厤缃紝璺宠繃鑷姩閮ㄧ讲銆傝鍦ㄤ粨搴?Settings 鈫?Secrets 閰嶇疆 SSH_HOST / SSH_USERNAME / SSH_PRIVATE_KEY"
+        run: echo "::warning::SSH Secrets not configured. Add SSH_HOST / SSH_USERNAME / SSH_PRIVATE_KEY in repo Settings -> Secrets to enable auto deploy."
